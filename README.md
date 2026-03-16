@@ -13,7 +13,7 @@ Firefox WebExtension for `music.yandex.ru` with two control surfaces:
 
 ## Requirements
 
-- Firefox 109+
+- Firefox 140+ (regular desktop Firefox)
 - Node.js 18+ and npm
 
 ## Install Dependencies
@@ -38,6 +38,30 @@ npm run build
 
 Build artifacts are written to `web-ext-artifacts/`.
 
+## Build And Install In Firefox (Persistent)
+
+Use this flow when you want the extension installed in the browser, not as a temporary dev add-on.
+
+1. Build the package:
+```bash
+npm run build
+```
+2. Sign the extension (required for persistent install on regular Firefox):
+```bash
+npx web-ext sign --source-dir . --channel unlisted --artifacts-dir web-ext-artifacts
+```
+3. Open Firefox `about:addons`.
+4. Click the gear icon -> `Install Add-on From File...`.
+5. Select the signed `.xpi` from `web-ext-artifacts/`.
+
+### Update Installed Add-on
+
+1. Increase `"version"` in `manifest.json`.
+2. Rebuild and re-sign the extension.
+3. Install the new signed `.xpi` from file again.
+
+Firefox updates the existing add-on in place when add-on ID is the same and version is higher.
+
 ## Lint Extension
 
 ```bash
@@ -54,8 +78,9 @@ cp config.example.json config.local.json
 3. Edit `config.local.json`:
 - `botToken`: Telegram bot token
 - `allowedUserId`: your Telegram numeric user ID (as string)
+  - You can get your user ID by messaging `@userinfobot` in Telegram.
 
-4. Start the extension (`npm run dev`) and open `https://music.yandex.ru/`.
+4. Run the extension (temporary dev mode or installed `.xpi`) and open `https://music.yandex.ru/`.
 5. Start playback in Yandex Music.
 6. Open your bot in Telegram and send `/start` or `/now`.
 
@@ -76,7 +101,6 @@ Inline buttons:
 - Remote Telegram control is unavailable when Firefox or the extension is not running.
 - Popup controls are intended for tabs with `https://music.yandex.ru/*`.
 
-## Persistent Installation in Firefox
+## Important Firefox Note
 
-For permanent installation on regular Firefox, use a signed `.xpi` package.
-Unsigned extensions can only be loaded temporarily in standard Firefox.
+Unsigned extensions can only be loaded temporarily in regular Firefox.
