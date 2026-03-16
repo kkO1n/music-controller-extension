@@ -1,8 +1,8 @@
 {
-  "name": "simple-firefox-popup",
+  "name": "yandex-music-remote-control",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Firefox WebExtension with a popup.",
+  "description": "Firefox extension for Yandex Music popup controls and Telegram bot remote control.",
   "scripts": {
     "dev": "web-ext run --source-dir . --target firefox-desktop",
     "build": "web-ext build --source-dir . --artifacts-dir web-ext-artifacts --overwrite-dest",

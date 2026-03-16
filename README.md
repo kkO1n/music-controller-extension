@@ -1,39 +1,82 @@
-# Simple Firefox Popup Extension
+# Yandex Music Remote Control (Firefox Extension)
 
-Firefox WebExtension for Yandex Music with:
-- popup now-playing display and playback controls
-- Telegram bot remote controls (while Firefox is open)
+Firefox WebExtension for `music.yandex.ru` with two control surfaces:
+- popup UI in the browser toolbar
+- Telegram bot remote control (works while Firefox and the extension are running)
 
-## Setup
+## Features
 
-1. Install dependencies:
-   - `npm install`
+- Detects current track title, artists, playback status, and progress
+- Playback controls in popup: `Previous`, `Play/Pause`, `Next`
+- Telegram bot commands and inline buttons for remote control
+- Access control by Telegram user ID (`allowedUserId`)
 
-## Scripts
+## Requirements
 
-- Start in Firefox as a temporary add-on:
-  - `npm run dev`
-- Build package:
-  - `npm run build`
-- Validate manifest and extension files:
-  - `npm run lint`
+- Firefox 109+
+- Node.js 18+ and npm
+
+## Install Dependencies
+
+```bash
+npm install
+```
+
+## Local Development (Temporary Add-on)
+
+```bash
+npm run dev
+```
+
+This opens Firefox with the extension loaded as a temporary add-on.
+
+## Build Package
+
+```bash
+npm run build
+```
+
+Build artifacts are written to `web-ext-artifacts/`.
+
+## Lint Extension
+
+```bash
+npm run lint
+```
 
 ## Telegram Bridge Setup
 
-1. Create a bot with `@BotFather` and copy its token.
-2. Copy config template:
-   - `cp config.example.json config.local.json`
+1. Create a bot with `@BotFather` and copy the bot token.
+2. Create local config:
+```bash
+cp config.example.json config.local.json
+```
 3. Edit `config.local.json`:
-   - set `botToken`
-   - set `allowedUserId` to your Telegram user ID
-4. Run extension:
-   - `npm run dev`
-5. Open `https://music.yandex.ru/` and play a song.
-6. In Telegram, open your bot and send:
-   - `/start` or `/now`
+- `botToken`: Telegram bot token
+- `allowedUserId`: your Telegram numeric user ID (as string)
 
-### Notes
+4. Start the extension (`npm run dev`) and open `https://music.yandex.ru/`.
+5. Start playback in Yandex Music.
+6. Open your bot in Telegram and send `/start` or `/now`.
 
-- `config.local.json` is gitignored and must stay local.
-- Remote Telegram control works only while Firefox is open and extension is running.
-- Inline Telegram buttons: `Previous`, `Play/Pause`, `Next`, `Refresh`.
+## Telegram Commands
+
+- `/start` - sends or refreshes the control message
+- `/now` - refreshes current player status
+
+Inline buttons:
+- `Previous`
+- `Play` or `Pause` (depends on current state)
+- `Next`
+- `Refresh`
+
+## Important Notes
+
+- `config.local.json` is local-only and ignored by git.
+- Remote Telegram control is unavailable when Firefox or the extension is not running.
+- Popup controls are intended for tabs with `https://music.yandex.ru/*`.
+
+## Persistent Installation in Firefox
+
+For permanent installation on regular Firefox, use a signed `.xpi` package.
+Unsigned extensions can only be loaded temporarily in standard Firefox.

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Simple Firefox Popup",
+  "name": "Yandex Music Remote Control",
   "version": "0.1.0",
-  "description": "Tracks current song on music.yandex.ru and shows it in popup.",
+  "description": "Shows current Yandex Music track, controls playback from the popup, and supports Telegram remote commands.",
   "permissions": ["storage", "tabs"],
   "host_permissions": ["https://music.yandex.ru/*", "https://api.telegram.org/*"],
   "background": {
@@ -16,13 +16,19 @@
     }
   ],
   "action": {
-    "default_title": "Open popup",
+    "default_title": "Yandex Music Remote",
     "default_popup": "popup/popup.html"
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "simple-popup@example.com",
-      "strict_min_version": "109.0"
+      "id": "yandex-music-remote@example.com",
+      "data_collection_permissions": {
+        "required": ["websiteActivity", "websiteContent"]
+      },
+      "strict_min_version": "140.0"
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   }
 }
