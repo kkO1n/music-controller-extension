@@ -79,6 +79,7 @@
   async function transitionWithEffects(event, payload = {}) {
     const result = transition(ns.state.lifecycleState, event, payload);
     applyTransitionResult(result);
+    await ns.actionIconService?.syncFromLifecycleState(ns.state.lifecycleState);
 
     for (const effect of result.effects) {
       await runEffect(effect, payload);

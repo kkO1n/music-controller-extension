@@ -30,6 +30,16 @@
   const TELEGRAM_RETRY_DELAY_MS = 4000;
   const TELEGRAM_OK_DELAY_MS = 250;
   const TELEGRAM_STATUS_REFRESH_INTERVAL_MS = 5000;
+  const ACTION_ICONS = {
+    connected: {
+      16: "icons/yandex-music-logo-16.png",
+      32: "icons/yandex-music-logo-32.png"
+    },
+    disconnected: {
+      16: "icons/yandex-music-logo-disconnected-16.png",
+      32: "icons/yandex-music-logo-disconnected-32.png"
+    }
+  };
 
   const state = {
     bridgeConfig: null,
@@ -80,7 +90,8 @@
       TELEGRAM_POLL_TIMEOUT_SECONDS,
       TELEGRAM_RETRY_DELAY_MS,
       TELEGRAM_OK_DELAY_MS,
-      TELEGRAM_STATUS_REFRESH_INTERVAL_MS
+      TELEGRAM_STATUS_REFRESH_INTERVAL_MS,
+      ACTION_ICONS
     },
     state,
     utils: {

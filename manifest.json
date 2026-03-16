@@ -9,6 +9,7 @@
     "scripts": [
       "background/core.js",
       "background/connection-fsm.js",
+      "background/action-icon-service.js",
       "background/telegram-api-service.js",
       "background/config-service.js",
       "background/player-gateway.js",
@@ -27,7 +28,11 @@
   ],
   "action": {
     "default_title": "Yandex Music Remote",
-    "default_popup": "popup/popup.html"
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/yandex-music-logo-disconnected-16.png",
+      "32": "icons/yandex-music-logo-disconnected-32.png"
+    }
   },
   "browser_specific_settings": {
     "gecko": {
