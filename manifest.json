@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Simple Firefox Popup",
+  "version": "0.1.0",
+  "description": "A minimal Firefox extension with a popup.",
+  "action": {
+    "default_title": "Open popup",
+    "default_popup": "popup/popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "simple-popup@example.com",
+      "strict_min_version": "109.0"
+    }
+  }
+}
