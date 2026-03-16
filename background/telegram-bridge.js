@@ -14,8 +14,12 @@
     nowPlayingUpdate: "NOW_PLAYING_UPDATE"
   };
 
+  const CONNECTION_MESSAGE_TYPES = {
+    getState: "TELEGRAM_CONNECTION_GET_STATE",
+    setEnabled: "TELEGRAM_CONNECTION_SET_ENABLED"
+  };
+
   const CALLBACK_ACTIONS = new Set(["previous", "playPause", "next", "refresh"]);
-  const STATUS_COMMANDS = new Set(["/start", "/now"]);
   const COMMANDS = {
     start: "/start",
     now: "/now"
@@ -26,7 +30,10 @@
   const TELEGRAM_OK_DELAY_MS = 250;
 
   let bridgeConfig = null;
+  let bridgeConfigError = null;
+  let telegramEnabled = false;
   let pollLoopRunning = false;
+  let pollAbortController = null;
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -83,6 +90,14 @@
     return lines.join("\n");
   }
 
+  function formatDisconnectedText() {
+    return [
+      "Yandex Music Remote",
+      "Status: disconnected.",
+      "Open the extension popup and press Connect to Telegram to enable remote control."
+    ].join("\n");
+  }
+
   function buildKeyboard(nowPlaying) {
     const playPauseLabel = nowPlaying?.isPlaying ? "Pause" : "Play";
 
@@ -102,7 +117,7 @@
     return `https://api.telegram.org/bot${bridgeConfig.botToken}/${method}`;
   }
 
-  async function telegramApi(method, params = {}) {
+  async function telegramApi(method, params = {}, options = {}) {
     if (!bridgeConfig?.botToken) {
       throw new Error("Telegram bot token is not configured.");
     }
@@ -110,7 +125,8 @@
     const response = await fetch(telegramUrl(method), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(params)
+      body: JSON.stringify(params),
+      signal: options.signal
     });
 
     const payload = await response.json().catch(() => null);
@@ -124,6 +140,10 @@
 
   function isMessageNotModifiedError(error) {
     return String(error?.message || "").toLowerCase().includes("message is not modified");
+  }
+
+  function isAbortError(error) {
+    return error?.name === "AbortError";
   }
 
   function textCommand(messageText) {
@@ -219,6 +239,77 @@
     return { chatId, messageId: message.message_id };
   }
 
+  async function notifyDisconnected() {
+    if (!bridgeConfig?.botToken) {
+      return;
+    }
+
+    const stored = await getStoredStatusMessage();
+    if (!stored?.chatId) {
+      return;
+    }
+
+    const chatId = stored.chatId;
+    const text = formatDisconnectedText();
+    const emptyKeyboard = { inline_keyboard: [] };
+
+    if (stored.messageId) {
+      try {
+        await telegramApi("editMessageText", {
+          chat_id: chatId,
+          message_id: stored.messageId,
+          text,
+          reply_markup: emptyKeyboard,
+          disable_web_page_preview: true
+        });
+        return;
+      } catch {
+        // Fallback to sending a new message below.
+      }
+    }
+
+    try {
+      const message = await telegramApi("sendMessage", {
+        chat_id: chatId,
+        text,
+        reply_markup: emptyKeyboard,
+        disable_web_page_preview: true
+      });
+      await saveStatusMessage(chatId, message.message_id);
+    } catch {
+      // Best effort notification.
+    }
+  }
+
+  async function notifyConnected() {
+    if (!bridgeConfig?.botToken) {
+      return;
+    }
+
+    const stored = await getStoredStatusMessage();
+    if (!stored?.chatId) {
+      return;
+    }
+
+    const tabId = await resolvePlayerTabId();
+    if (tabId !== null) {
+      await requestFreshPlayerState(tabId);
+    }
+
+    const note = tabId === null ? "Connection enabled. Open music.yandex.ru." : "Connection enabled.";
+
+    try {
+      await upsertStatusMessage(stored.chatId, stored.messageId || null, note);
+    } catch {
+      // Best effort notification.
+    }
+  }
+
+  async function hasOpenPlayerTab() {
+    const tabs = await api.tabs.query({ url: ["https://music.yandex.ru/*"] });
+    return tabs.length > 0;
+  }
+
   async function resolvePlayerTabId() {
     const stored = await api.storage.local.get(STORAGE_KEYS.lastPlayerTabId);
     const lastTabId = stored[STORAGE_KEYS.lastPlayerTabId];
@@ -242,6 +333,69 @@
     const selectedTab = tabs[0];
     await api.storage.local.set({ [STORAGE_KEYS.lastPlayerTabId]: selectedTab.id });
     return selectedTab.id;
+  }
+
+  async function shouldPoll() {
+    if (!telegramEnabled || !bridgeConfig?.botToken) {
+      return false;
+    }
+    return hasOpenPlayerTab();
+  }
+
+  function stopPolling() {
+    if (pollAbortController) {
+      pollAbortController.abort();
+    }
+  }
+
+  async function connectionState() {
+    return {
+      enabled: telegramEnabled,
+      polling: pollLoopRunning,
+      hasYandexTab: await hasOpenPlayerTab(),
+      error: bridgeConfigError
+    };
+  }
+
+  async function evaluatePollingState() {
+    if (await shouldPoll()) {
+      if (!pollLoopRunning) {
+        void pollLoop();
+      }
+      return;
+    }
+
+    stopPolling();
+  }
+
+  async function setConnectionEnabled(enabled) {
+    if (!enabled) {
+      telegramEnabled = false;
+      stopPolling();
+      await notifyDisconnected();
+      return {
+        ok: true,
+        ...(await connectionState())
+      };
+    }
+
+    const loaded = await loadConfig();
+    if (!loaded) {
+      telegramEnabled = false;
+      stopPolling();
+      return {
+        ok: false,
+        ...(await connectionState())
+      };
+    }
+
+    telegramEnabled = true;
+    await notifyConnected();
+    await evaluatePollingState();
+    return {
+      ok: true,
+      ...(await connectionState())
+    };
   }
 
   async function requestFreshPlayerState(tabId) {
@@ -331,15 +485,6 @@
     return CALLBACK_ACTIONS.has(action) ? action : null;
   }
 
-  async function maybeStartPolling() {
-    if (!bridgeConfig) {
-      await loadConfig();
-    }
-    if (bridgeConfig?.botToken && !pollLoopRunning) {
-      void pollLoop();
-    }
-  }
-
   async function handleCallbackQuery(callbackQuery) {
     const fromId = callbackQuery.from?.id;
     const callbackQueryId = callbackQuery.id;
@@ -398,13 +543,13 @@
     await api.storage.local.set({ [STORAGE_KEYS.telegramOffset]: nextOffset });
   }
 
-  async function pollTelegramOnce() {
+  async function pollTelegramOnce(signal) {
     const offset = await getTelegramOffset();
     const updates = await telegramApi("getUpdates", {
       offset,
       timeout: TELEGRAM_POLL_TIMEOUT_SECONDS,
       allowed_updates: ["message", "callback_query"]
-    });
+    }, { signal });
 
     let nextOffset = offset;
     for (const update of updates) {
@@ -423,12 +568,21 @@
     }
 
     pollLoopRunning = true;
-    while (bridgeConfig?.botToken) {
+    while (await shouldPoll()) {
+      pollAbortController = new AbortController();
       try {
-        await pollTelegramOnce();
+        await pollTelegramOnce(pollAbortController.signal);
       } catch (error) {
+        if (isAbortError(error)) {
+          continue;
+        }
+        if (!(await shouldPoll())) {
+          break;
+        }
         console.warn("[telegram-bridge]", error?.message || error);
         await sleep(TELEGRAM_RETRY_DELAY_MS);
+      } finally {
+        pollAbortController = null;
       }
     }
     pollLoopRunning = false;
@@ -451,24 +605,23 @@
       }
 
       bridgeConfig = { botToken, allowedUserId };
+      bridgeConfigError = null;
       return true;
     } catch (error) {
       bridgeConfig = null;
+      bridgeConfigError = error?.message || "Telegram config is invalid.";
       console.warn(
         "[telegram-bridge] Telegram bridge disabled. Create config.local.json from config.example.json.",
-        error?.message || error
+        bridgeConfigError
       );
       return false;
     }
   }
 
   async function bootstrap() {
-    const loaded = await loadConfig();
-    if (!loaded) {
-      return;
-    }
-
-    void pollLoop();
+    telegramEnabled = false;
+    stopPolling();
+    await evaluatePollingState();
   }
 
   api.runtime.onInstalled.addListener(() => {
@@ -479,7 +632,29 @@
     void bootstrap();
   });
 
+  api.tabs.onCreated.addListener(() => {
+    void evaluatePollingState();
+  });
+
+  api.tabs.onRemoved.addListener(() => {
+    void evaluatePollingState();
+  });
+
+  api.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+    if (typeof changeInfo.url === "string" || changeInfo.status === "complete") {
+      void evaluatePollingState();
+    }
+  });
+
   api.runtime.onMessage.addListener((message, sender) => {
+    if (message?.type === CONNECTION_MESSAGE_TYPES.getState) {
+      return connectionState();
+    }
+
+    if (message?.type === CONNECTION_MESSAGE_TYPES.setEnabled) {
+      return setConnectionEnabled(Boolean(message.enabled));
+    }
+
     if (!message || message.type !== MESSAGE_TYPES.nowPlayingUpdate) {
       return undefined;
     }
@@ -498,7 +673,7 @@
     }
 
     return api.storage.local.set(updates).then(async () => {
-      await maybeStartPolling();
+      await evaluatePollingState();
       return { ok: true };
     });
   });

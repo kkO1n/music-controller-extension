@@ -1,121 +1,106 @@
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
-  const STORAGE_KEY = "nowPlaying";
-  const CONTROL_MESSAGE_TYPE = "PLAYER_CONTROL";
 
-  const titleNode = document.getElementById("title");
-  const artistsNode = document.getElementById("artists");
-  const progressNode = document.getElementById("progress");
+  const MESSAGE_TYPES = {
+    getState: "TELEGRAM_CONNECTION_GET_STATE",
+    setEnabled: "TELEGRAM_CONNECTION_SET_ENABLED"
+  };
+
   const statusNode = document.getElementById("status");
+  const toggleBtn = document.getElementById("toggleBtn");
   const feedbackNode = document.getElementById("feedback");
-  const previousBtn = document.getElementById("previousBtn");
-  const playPauseBtn = document.getElementById("playPauseBtn");
-  const nextBtn = document.getElementById("nextBtn");
-  const CONTROL_BINDINGS = [
-    [previousBtn, "previous"],
-    [playPauseBtn, "playPause"],
-    [nextBtn, "next"]
-  ];
 
-  function renderProgress(currentTime, duration) {
-    if (!currentTime && !duration) {
-      return "";
-    }
-    if (!duration) {
-      return currentTime;
-    }
-    return currentTime ? `${currentTime} / ${duration}` : `00:00 / ${duration}`;
-  }
+  const state = {
+    enabled: false,
+    polling: false,
+    hasYandexTab: false,
+    error: null
+  };
 
   function setFeedback(message, isError = false) {
     feedbackNode.textContent = message;
     feedbackNode.classList.toggle("feedback-error", isError);
   }
 
-  function setControlsDisabled(disabled) {
-    previousBtn.disabled = disabled;
-    playPauseBtn.disabled = disabled;
-    nextBtn.disabled = disabled;
+  function normalizeState(payload) {
+    state.enabled = Boolean(payload?.enabled);
+    state.polling = Boolean(payload?.polling);
+    state.hasYandexTab = Boolean(payload?.hasYandexTab);
+    state.error = payload?.error ? String(payload.error) : null;
   }
 
-  function playPauseLabel(state) {
-    return state?.isPlaying ? "Pause" : "Play";
-  }
-
-  function renderState(state) {
-    if (!state || !state.found) {
-      titleNode.textContent = "Open music.yandex.ru";
-      artistsNode.textContent = "Play any song to start tracking.";
-      progressNode.textContent = "";
-      statusNode.textContent = "No active player detected.";
-      statusNode.classList.remove("status-playing");
-      playPauseBtn.textContent = "Play/Pause";
-      setControlsDisabled(false);
-      return;
+  function statusText() {
+    if (state.enabled && state.polling) {
+      return "Connected. Telegram control is active.";
     }
 
-    titleNode.textContent = state.title || "Unknown track";
-    artistsNode.textContent = state.artists || "Unknown artist";
-    progressNode.textContent = renderProgress(state.currentTime, state.duration);
-    statusNode.textContent = state.isPlaying ? "Playing" : "Paused";
-    statusNode.classList.toggle("status-playing", Boolean(state.isPlaying));
-    playPauseBtn.textContent = playPauseLabel(state);
-    setControlsDisabled(false);
-  }
-
-  async function loadInitialState() {
-    const result = await api.storage.local.get(STORAGE_KEY);
-    renderState(result[STORAGE_KEY]);
-  }
-
-  async function activeTabId() {
-    const tabs = await api.tabs.query({ active: true, currentWindow: true });
-    return tabs?.[0]?.id ?? null;
-  }
-
-  async function sendControl(action) {
-    setFeedback("");
-    const tabId = await activeTabId();
-    if (tabId === null) {
-      setFeedback("No active tab found.", true);
-      return;
+    if (state.enabled && !state.hasYandexTab) {
+      return "Connected. Open music.yandex.ru to start polling.";
     }
 
+    if (state.enabled) {
+      return "Connected. Waiting for player tab.";
+    }
+
+    return "Disconnected. Telegram control is off.";
+  }
+
+  function render() {
+    statusNode.textContent = statusText();
+    statusNode.classList.toggle("status-connected", state.enabled && state.polling);
+    toggleBtn.textContent = state.enabled ? "Disconnect Telegram" : "Connect to Telegram";
+  }
+
+  async function sendMessage(message) {
     try {
-      const response = await api.tabs.sendMessage(tabId, {
-        type: CONTROL_MESSAGE_TYPE,
-        action
-      });
-
-      if (!response?.ok) {
-        setFeedback("Player control not found on this tab.", true);
-        return;
-      }
-
-      setFeedback("Command sent.");
+      return await api.runtime.sendMessage(message);
     } catch {
-      setFeedback("Open music.yandex.ru in the active tab first.", true);
+      return null;
     }
   }
 
-  api.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") {
+  async function refreshState() {
+    const response = await sendMessage({ type: MESSAGE_TYPES.getState });
+    if (!response) {
+      setFeedback("Failed to read connection state.", true);
       return;
     }
 
-    if (!changes[STORAGE_KEY]) {
+    normalizeState(response);
+    render();
+  }
+
+  async function onToggleClick() {
+    toggleBtn.disabled = true;
+    setFeedback("");
+
+    const nextEnabled = !state.enabled;
+    const response = await sendMessage({
+      type: MESSAGE_TYPES.setEnabled,
+      enabled: nextEnabled
+    });
+
+    if (!response) {
+      setFeedback("Failed to change Telegram connection state.", true);
+      toggleBtn.disabled = false;
       return;
     }
 
-    renderState(changes[STORAGE_KEY].newValue);
+    normalizeState(response);
+    render();
+
+    if (!response.ok) {
+      setFeedback(state.error || "Telegram is not configured.", true);
+    } else {
+      setFeedback(nextEnabled ? "Telegram connected." : "Telegram disconnected.");
+    }
+
+    toggleBtn.disabled = false;
+  }
+
+  toggleBtn.addEventListener("click", () => {
+    void onToggleClick();
   });
 
-  for (const [button, action] of CONTROL_BINDINGS) {
-    button.addEventListener("click", () => {
-      void sendControl(action);
-    });
-  }
-
-  setControlsDisabled(true);
-  void loadInitialState();
+  void refreshState();
 })();

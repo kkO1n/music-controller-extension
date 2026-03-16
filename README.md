@@ -1,13 +1,13 @@
 # Yandex Music Remote Control (Firefox Extension)
 
 Firefox WebExtension for `music.yandex.ru` with two control surfaces:
-- popup UI in the browser toolbar
+- popup Telegram connection toggle in the browser toolbar
 - Telegram bot remote control (works while Firefox and the extension are running)
 
 ## Features
 
 - Detects current track title, artists, playback status, and progress
-- Playback controls in popup: `Previous`, `Play/Pause`, `Next`
+- Popup button to connect/disconnect Telegram polling
 - Telegram bot commands and inline buttons for remote control
 - Access control by Telegram user ID (`allowedUserId`)
 
@@ -81,8 +81,9 @@ cp config.example.json config.local.json
   - You can get your user ID by messaging `@userinfobot` in Telegram.
 
 4. Run the extension (temporary dev mode or installed `.xpi`) and open `https://music.yandex.ru/`.
-5. Start playback in Yandex Music.
-6. Open your bot in Telegram and send `/start` or `/now`.
+5. In the extension popup, click `Connect to Telegram`.
+6. Start playback in Yandex Music.
+7. Open your bot in Telegram and send `/start` or `/now`.
 
 ## Telegram Commands
 
@@ -99,7 +100,8 @@ Inline buttons:
 
 - `config.local.json` is local-only and ignored by git.
 - Remote Telegram control is unavailable when Firefox or the extension is not running.
-- Popup controls are intended for tabs with `https://music.yandex.ru/*`.
+- Telegram polling starts only after you press `Connect to Telegram` in popup.
+- Telegram polling stops when you press `Disconnect Telegram` or no Yandex Music tab is open.
 
 ## Important Firefox Note
 
