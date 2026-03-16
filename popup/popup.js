@@ -9,6 +9,8 @@
   const statusNode = document.getElementById("status");
   const toggleBtn = document.getElementById("toggleBtn");
   const feedbackNode = document.getElementById("feedback");
+  const popupNode = document.querySelector(".popup");
+  const DEFAULT_FEEDBACK = "Tip: Use /start in Telegram after connecting.";
 
   const viewState = {
     enabled: false,
@@ -46,9 +48,12 @@
   }
 
   function render() {
+    const active = viewState.enabled && viewState.polling;
     statusNode.textContent = buildStatusText();
-    statusNode.classList.toggle("status-connected", viewState.enabled && viewState.polling);
+    statusNode.classList.toggle("status-connected", active);
     toggleBtn.textContent = viewState.enabled ? "Disconnect Telegram" : "Connect to Telegram";
+    popupNode?.classList.toggle("popup-enabled", viewState.enabled);
+    popupNode?.classList.toggle("popup-active", active);
   }
 
   async function requestBackground(message) {
@@ -103,4 +108,5 @@
   });
 
   void refreshConnectionState();
+  setFeedback(DEFAULT_FEEDBACK);
 })();

@@ -8,11 +8,18 @@
   </head>
   <body>
     <main class="popup">
-      <p class="label">Telegram Remote</p>
-      <p class="title">Yandex Music Controller</p>
-      <p id="status" class="status">Loading connection state...</p>
-      <button id="toggleBtn" type="button" class="toggle-button">Connect to Telegram</button>
-      <p id="feedback" class="feedback"></p>
+      <div class="glow glow-a" aria-hidden="true"></div>
+      <div class="glow glow-b" aria-hidden="true"></div>
+      <header class="hero">
+        <p class="label">Telegram Remote</p>
+        <h1 class="title">Yandex Music Bridge</h1>
+        <p class="subtitle">One tap to connect control from your Telegram chat.</p>
+      </header>
+      <section class="panel" aria-live="polite">
+        <p id="status" class="status">Loading connection state...</p>
+        <button id="toggleBtn" type="button" class="toggle-button">Connect to Telegram</button>
+        <p id="feedback" class="feedback">Tip: Use <code>/start</code> in Telegram after connecting.</p>
+      </section>
     </main>
     <script src="popup.js"></script>
   </body>
