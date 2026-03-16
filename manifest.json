@@ -6,7 +6,16 @@
   "permissions": ["storage", "tabs"],
   "host_permissions": ["https://music.yandex.ru/*", "https://api.telegram.org/*"],
   "background": {
-    "scripts": ["background/telegram-bridge.js"]
+    "scripts": [
+      "background/core.js",
+      "background/telegram-api-service.js",
+      "background/config-service.js",
+      "background/player-gateway.js",
+      "background/status-message-service.js",
+      "background/telegram-update-handlers.js",
+      "background/polling-controller.js",
+      "background/main.js"
+    ]
   },
   "content_scripts": [
     {

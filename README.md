@@ -11,6 +11,20 @@ Firefox WebExtension for `music.yandex.ru` with two control surfaces:
 - Telegram bot commands and inline buttons for remote control
 - Access control by Telegram user ID (`allowedUserId`)
 
+## Architecture Overview
+
+- `content/yandex-music-tracker.js`: reads player state on `music.yandex.ru`, stores `nowPlaying`, and accepts control/state requests from background.
+- `background/*`: modular Telegram bridge:
+  - `core.js`: shared constants/state/utilities
+  - `telegram-api-service.js`: Telegram HTTP client
+  - `config-service.js`: local config loading and user auth checks
+  - `player-gateway.js`: Yandex tab lookup and player command forwarding
+  - `status-message-service.js`: Telegram status message formatting/updating
+  - `telegram-update-handlers.js`: `/start`, `/now`, and callback button handling
+  - `polling-controller.js`: connect toggle state + long-poll lifecycle
+  - `main.js`: event wiring (`runtime`, `tabs`) and orchestration
+- `popup/*`: connection toggle UI only (connect/disconnect + status text).
+
 ## Requirements
 
 - Firefox 140+ (regular desktop Firefox)
@@ -95,6 +109,15 @@ Inline buttons:
 - `Play` or `Pause` (depends on current state)
 - `Next`
 - `Refresh`
+
+### Extending Telegram Commands
+
+- Add or update slash-command behavior in `background/telegram-update-handlers.js` (`handleTextMessage`).
+- Add new inline callback actions by updating:
+  - `CALLBACK_ACTIONS` in `background/core.js`
+  - keyboard layout in `background/status-message-service.js`
+  - callback handling in `background/telegram-update-handlers.js`.
+- Keep player-side actions in `background/player-gateway.js` and `content/yandex-music-tracker.js` aligned.
 
 ## Important Notes
 
