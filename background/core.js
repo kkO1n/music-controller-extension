@@ -26,15 +26,17 @@
   };
 
   const CALLBACK_PREFIX = "ctl:";
-  const TELEGRAM_POLL_TIMEOUT_SECONDS = 25;
+  const TELEGRAM_POLL_TIMEOUT_SECONDS = 5;
   const TELEGRAM_RETRY_DELAY_MS = 4000;
   const TELEGRAM_OK_DELAY_MS = 250;
+  const TELEGRAM_STATUS_REFRESH_INTERVAL_MS = 5000;
 
   const state = {
     bridgeConfig: null,
     bridgeConfigError: null,
     lifecycleState: "DISCONNECTED",
     lastErrorCode: null,
+    lastStatusRefreshAt: 0,
     pollLoopRunning: false,
     pollAbortController: null
   };
@@ -77,7 +79,8 @@
       CALLBACK_PREFIX,
       TELEGRAM_POLL_TIMEOUT_SECONDS,
       TELEGRAM_RETRY_DELAY_MS,
-      TELEGRAM_OK_DELAY_MS
+      TELEGRAM_OK_DELAY_MS,
+      TELEGRAM_STATUS_REFRESH_INTERVAL_MS
     },
     state,
     utils: {

@@ -208,11 +208,31 @@
     }
   }
 
+  async function refreshStoredStatusMessage(note = "") {
+    const stored = await getStoredStatusMessage();
+    if (!stored?.chatId) {
+      return false;
+    }
+
+    const tabId = await ns.playerGateway.resolvePlayerTabId();
+    if (tabId !== null) {
+      await ns.playerGateway.requestFreshPlayerState(tabId);
+    }
+
+    try {
+      await upsertStatusMessage(stored.chatId, stored.messageId || null, note);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   ns.statusMessageService = {
     upsertStatusMessage,
     clearStoredStatusMessage,
     notifyDisconnected,
     notifyConnected,
-    getStoredStatusMessage
+    getStoredStatusMessage,
+    refreshStoredStatusMessage
   };
 })();

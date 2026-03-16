@@ -1,7 +1,12 @@
 (() => {
   const ns = globalThis.__ymr;
   const { api } = ns;
-  const { STORAGE_KEYS, TELEGRAM_POLL_TIMEOUT_SECONDS, TELEGRAM_RETRY_DELAY_MS } = ns.constants;
+  const {
+    STORAGE_KEYS,
+    TELEGRAM_POLL_TIMEOUT_SECONDS,
+    TELEGRAM_RETRY_DELAY_MS,
+    TELEGRAM_STATUS_REFRESH_INTERVAL_MS
+  } = ns.constants;
   const { sleep, isAbortError } = ns.utils;
   const { STATES, EVENTS, EFFECTS, ERROR_CODES, transition, isUserEnabledState } = ns.connectionFsm;
 
@@ -44,6 +49,16 @@
     if (nextOffset !== offset) {
       await setTelegramOffset(nextOffset);
     }
+  }
+
+  async function maybeRefreshStatus(force = false) {
+    const now = Date.now();
+    if (!force && now - ns.state.lastStatusRefreshAt < TELEGRAM_STATUS_REFRESH_INTERVAL_MS) {
+      return;
+    }
+
+    ns.state.lastStatusRefreshAt = now;
+    await ns.statusMessageService.refreshStoredStatusMessage();
   }
 
   async function transitionWithEffects(event, payload = {}) {
@@ -116,6 +131,7 @@
 
     ns.state.pollLoopRunning = true;
     await transitionWithEffects(EVENTS.pollStarted);
+    await maybeRefreshStatus(true);
 
     while (isUserEnabledState(ns.state.lifecycleState)) {
       const hasTab = await ns.playerGateway.hasOpenPlayerTab();
@@ -127,6 +143,7 @@
       ns.state.pollAbortController = new AbortController();
       try {
         await pollTelegramOnce(ns.state.pollAbortController.signal);
+        await maybeRefreshStatus();
       } catch (error) {
         if (isAbortError(error)) {
           continue;
@@ -184,6 +201,7 @@
     stopPolling();
     ns.state.lifecycleState = STATES.disconnected;
     ns.state.lastErrorCode = null;
+    ns.state.lastStatusRefreshAt = 0;
     await transitionWithEffects(EVENTS.bootstrap);
     await maybeDispatchTabState();
   }
