@@ -1,0 +1,14 @@
+{
+  "name": "simple-firefox-popup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Firefox WebExtension with a popup.",
+  "scripts": {
+    "dev": "web-ext run --source-dir . --target firefox-desktop",
+    "build": "web-ext build --source-dir . --artifacts-dir web-ext-artifacts --overwrite-dest",
+    "lint": "web-ext lint --source-dir ."
+  },
+  "devDependencies": {
+    "web-ext": "^10.0.0"
+  }
+}

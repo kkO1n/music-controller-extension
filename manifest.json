@@ -2,7 +2,16 @@
   "manifest_version": 3,
   "name": "Simple Firefox Popup",
   "version": "0.1.0",
-  "description": "A minimal Firefox extension with a popup.",
+  "description": "Tracks current song on music.yandex.ru and shows it in popup.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://music.yandex.ru/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://music.yandex.ru/*"],
+      "js": ["content/yandex-music-tracker.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_title": "Open popup",
     "default_popup": "popup/popup.html"

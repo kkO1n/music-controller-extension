@@ -2,9 +2,16 @@
 
 Minimal Firefox WebExtension scaffold with a popup.
 
-## Run with web-ext
+## Setup
 
-1. Install `web-ext` globally:
-   - `npm install --global web-ext`
-2. From this directory, run:
-   - `web-ext run --target firefox-desktop`
+1. Install dependencies:
+   - `npm install`
+
+## Scripts
+
+- Start in Firefox as a temporary add-on:
+  - `npm run dev`
+- Build package:
+  - `npm run build`
+- Validate manifest and extension files:
+  - `npm run lint`
