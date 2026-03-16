@@ -3,7 +3,7 @@
   "name": "Simple Firefox Popup",
   "version": "0.1.0",
   "description": "Tracks current song on music.yandex.ru and shows it in popup.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": ["https://music.yandex.ru/*"],
   "content_scripts": [
     {

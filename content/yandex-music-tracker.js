@@ -2,6 +2,7 @@
   const api = globalThis.browser ?? globalThis.chrome;
   const STORAGE_KEY = "nowPlaying";
   const UPDATE_INTERVAL_MS = 1000;
+  const CONTROL_ACTIONS = new Set(["previous", "playPause", "next"]);
   let lastSerialized = "";
 
   function text(node) {
@@ -23,6 +24,58 @@
       document.querySelector('[class*="PlayerBarDesktopWithBackgroundProgressBar_playerBar"]') ||
       document.querySelector('[class*="PlayerBarDesktopWithBackgroundProgressBar_player"]')
     );
+  }
+
+  function iconHref(button) {
+    const useNode = button.querySelector("use");
+    return useNode?.getAttribute("href") || useNode?.getAttribute("xlink:href") || "";
+  }
+
+  function label(button) {
+    return (button.getAttribute("aria-label") || "").toLowerCase();
+  }
+
+  function matchByAction(button, action) {
+    const href = iconHref(button);
+    const ariaLabel = label(button);
+
+    if (action === "next") {
+      return href.includes("#next_xxs") || ariaLabel.includes("next") || ariaLabel.includes("следующ");
+    }
+
+    if (action === "previous") {
+      return (
+        href.includes("#previous_xxs") ||
+        ariaLabel.includes("previous") ||
+        ariaLabel.includes("предыдущ")
+      );
+    }
+
+    if (action === "playPause") {
+      return (
+        href.includes("#play_filled_l") ||
+        href.includes("#pause_filled_l") ||
+        ariaLabel.includes("play") ||
+        ariaLabel.includes("pause") ||
+        ariaLabel.includes("воспроиз") ||
+        ariaLabel.includes("пауз")
+      );
+    }
+
+    return false;
+  }
+
+  function clickControl(action) {
+    const playerRoot = queryPlayerRoot() || document;
+    const buttons = Array.from(playerRoot.querySelectorAll("button"));
+    const target = buttons.find((button) => matchByAction(button, action));
+
+    if (!target) {
+      return false;
+    }
+
+    target.click();
+    return true;
   }
 
   function mediaSessionSnapshot() {
@@ -158,6 +211,23 @@
   setInterval(() => {
     void publish();
   }, UPDATE_INTERVAL_MS);
+
+  api.runtime.onMessage.addListener((message) => {
+    if (!message || message.type !== "PLAYER_CONTROL") {
+      return undefined;
+    }
+
+    if (!CONTROL_ACTIONS.has(message.action)) {
+      return Promise.resolve({ ok: false, error: "Unsupported action" });
+    }
+
+    const ok = clickControl(message.action);
+    if (ok) {
+      schedulePublish();
+    }
+
+    return Promise.resolve({ ok });
+  });
 
   void publish();
 })();
