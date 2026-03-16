@@ -16,6 +16,10 @@
 
   const CALLBACK_ACTIONS = new Set(["previous", "playPause", "next", "refresh"]);
   const STATUS_COMMANDS = new Set(["/start", "/now"]);
+  const COMMANDS = {
+    start: "/start",
+    now: "/now"
+  };
   const CALLBACK_PREFIX = "ctl:";
   const TELEGRAM_POLL_TIMEOUT_SECONDS = 25;
   const TELEGRAM_RETRY_DELAY_MS = 4000;
@@ -129,18 +133,8 @@
       .toLowerCase();
   }
 
-  function isStatusCommand(command) {
-    if (STATUS_COMMANDS.has(command)) {
-      return true;
-    }
-
-    for (const baseCommand of STATUS_COMMANDS) {
-      if (command.startsWith(`${baseCommand}@`)) {
-        return true;
-      }
-    }
-
-    return false;
+  function isCommand(command, expectedCommand) {
+    return command === expectedCommand || command.startsWith(`${expectedCommand}@`);
   }
 
   async function sendChatText(chatId, text) {
@@ -169,7 +163,22 @@
     return result[STORAGE_KEYS.statusMessage] || null;
   }
 
-  async function upsertStatusMessage(chatId, preferredMessageId = null, note = "") {
+  async function clearStoredStatusMessage(chatId) {
+    const stored = await getStoredStatusMessage();
+    if (!stored || String(stored.chatId) !== String(chatId)) {
+      return;
+    }
+
+    await api.storage.local.remove(STORAGE_KEYS.statusMessage);
+  }
+
+  async function upsertStatusMessage(
+    chatId,
+    preferredMessageId = null,
+    note = "",
+    options = {}
+  ) {
+    const forceNewMessage = Boolean(options.forceNewMessage);
     const nowPlaying = await getNowPlaying();
     const text = formatStatusText(nowPlaying, note);
     const replyMarkup = buildKeyboard(nowPlaying);
@@ -177,7 +186,7 @@
     const stored = await getStoredStatusMessage();
     const storedMessageId =
       stored && String(stored.chatId) === String(chatId) ? stored.messageId : null;
-    const messageId = preferredMessageId || storedMessageId;
+    const messageId = forceNewMessage ? null : preferredMessageId || storedMessageId;
 
     if (messageId) {
       try {
@@ -298,7 +307,13 @@
     }
 
     const command = textCommand(message.text);
-    if (isStatusCommand(command)) {
+    if (isCommand(command, COMMANDS.start)) {
+      await clearStoredStatusMessage(chatId);
+      await upsertStatusMessage(chatId, null, "", { forceNewMessage: true });
+      return;
+    }
+
+    if (isCommand(command, COMMANDS.now)) {
       await upsertStatusMessage(chatId);
       return;
     }
