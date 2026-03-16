@@ -4,9 +4,10 @@
   "private": true,
   "description": "Firefox extension for Yandex Music popup controls and Telegram bot remote control.",
   "scripts": {
-    "dev": "web-ext run --source-dir . --target firefox-desktop",
-    "build": "web-ext build --source-dir . --artifacts-dir web-ext-artifacts --overwrite-dest",
-    "lint": "web-ext lint --source-dir ."
+    "dev": "web-ext run --source-dir . --target firefox-desktop --ignore-files \"tests/**\"",
+    "build": "web-ext build --source-dir . --artifacts-dir web-ext-artifacts --overwrite-dest --ignore-files \"tests/**\"",
+    "lint": "web-ext lint --source-dir . --ignore-files \"tests/**\"",
+    "test": "node --test"
   },
   "devDependencies": {
     "web-ext": "^10.0.0"

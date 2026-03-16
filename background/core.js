@@ -33,7 +33,8 @@
   const state = {
     bridgeConfig: null,
     bridgeConfigError: null,
-    telegramEnabled: false,
+    lifecycleState: "DISCONNECTED",
+    lastErrorCode: null,
     pollLoopRunning: false,
     pollAbortController: null
   };

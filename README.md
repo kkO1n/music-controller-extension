@@ -16,6 +16,7 @@ Firefox WebExtension for `music.yandex.ru` with two control surfaces:
 - `content/yandex-music-tracker.js`: reads player state on `music.yandex.ru`, stores `nowPlaying`, and accepts control/state requests from background.
 - `background/*`: modular Telegram bridge:
   - `core.js`: shared constants/state/utilities
+  - `connection-fsm.js`: connection/polling lifecycle state machine
   - `telegram-api-service.js`: Telegram HTTP client
   - `config-service.js`: local config loading and user auth checks
   - `player-gateway.js`: Yandex tab lookup and player command forwarding
@@ -80,6 +81,12 @@ Firefox updates the existing add-on in place when add-on ID is the same and vers
 
 ```bash
 npm run lint
+```
+
+## Run Unit Tests
+
+```bash
+npm test
 ```
 
 ## Telegram Bridge Setup

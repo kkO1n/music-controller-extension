@@ -8,6 +8,7 @@
   "background": {
     "scripts": [
       "background/core.js",
+      "background/connection-fsm.js",
       "background/telegram-api-service.js",
       "background/config-service.js",
       "background/player-gateway.js",
