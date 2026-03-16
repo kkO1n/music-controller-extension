@@ -3,6 +3,11 @@
   const STORAGE_KEY = "nowPlaying";
   const UPDATE_INTERVAL_MS = 1000;
   const CONTROL_ACTIONS = new Set(["previous", "playPause", "next"]);
+  const MESSAGE_TYPES = {
+    control: "PLAYER_CONTROL",
+    stateRequest: "PLAYER_STATE_REQUEST",
+    nowPlayingUpdate: "NOW_PLAYING_UPDATE"
+  };
   let lastSerialized = "";
 
   function text(node) {
@@ -183,6 +188,15 @@
 
     lastSerialized = serialized;
     await api.storage.local.set({ [STORAGE_KEY]: payload });
+
+    try {
+      await api.runtime.sendMessage({
+        type: MESSAGE_TYPES.nowPlayingUpdate,
+        payload
+      });
+    } catch {
+      // Ignore when background is unavailable.
+    }
   }
 
   let publishTimer = null;
@@ -213,12 +227,23 @@
   }, UPDATE_INTERVAL_MS);
 
   api.runtime.onMessage.addListener((message) => {
-    if (!message || message.type !== "PLAYER_CONTROL") {
+    if (!message) {
+      return undefined;
+    }
+
+    if (message.type === MESSAGE_TYPES.stateRequest) {
+      return Promise.resolve({
+        ok: true,
+        payload: collectTrackInfo() ?? buildFallback()
+      });
+    }
+
+    if (message.type !== MESSAGE_TYPES.control) {
       return undefined;
     }
 
     if (!CONTROL_ACTIONS.has(message.action)) {
-      return Promise.resolve({ ok: false, error: "Unsupported action" });
+      return Promise.resolve({ ok: false, error: "Unsupported action." });
     }
 
     const ok = clickControl(message.action);

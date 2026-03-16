@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "description": "Tracks current song on music.yandex.ru and shows it in popup.",
   "permissions": ["storage", "tabs"],
-  "host_permissions": ["https://music.yandex.ru/*"],
+  "host_permissions": ["https://music.yandex.ru/*", "https://api.telegram.org/*"],
+  "background": {
+    "scripts": ["background/telegram-bridge.js"]
+  },
   "content_scripts": [
     {
       "matches": ["https://music.yandex.ru/*"],
