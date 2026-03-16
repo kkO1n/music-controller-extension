@@ -12,35 +12,44 @@
     if (!nowPlaying?.currentTime && !nowPlaying?.duration) {
       return "n/a";
     }
+
     if (!nowPlaying.duration) {
       return nowPlaying.currentTime;
     }
+
     if (!nowPlaying.currentTime) {
       return `00:00 / ${nowPlaying.duration}`;
     }
+
     return `${nowPlaying.currentTime} / ${nowPlaying.duration}`;
   }
 
-  function formatStatusText(nowPlaying, note = "") {
+  function statusLines(nowPlaying) {
     const lines = ["Yandex Music Remote"];
 
     if (!hasTrack(nowPlaying)) {
       lines.push("Status: no active player data.");
       lines.push("Open https://music.yandex.ru and play a track.");
-    } else {
-      lines.push(`Title: ${nowPlaying.title || "Unknown track"}`);
-      lines.push(`Artists: ${nowPlaying.artists || "Unknown artist"}`);
-      lines.push(`Playback: ${nowPlaying.isPlaying ? "playing" : "paused"}`);
-      lines.push(`Progress: ${formatProgress(nowPlaying)}`);
-      if (nowPlaying.trackUrl) {
-        lines.push(`Link: ${nowPlaying.trackUrl}`);
-      }
+      return lines;
     }
 
+    lines.push(`Title: ${nowPlaying.title || "Unknown track"}`);
+    lines.push(`Artists: ${nowPlaying.artists || "Unknown artist"}`);
+    lines.push(`Playback: ${nowPlaying.isPlaying ? "playing" : "paused"}`);
+    lines.push(`Progress: ${formatProgress(nowPlaying)}`);
+
+    if (nowPlaying.trackUrl) {
+      lines.push(`Link: ${nowPlaying.trackUrl}`);
+    }
+
+    return lines;
+  }
+
+  function formatStatusText(nowPlaying, note = "") {
+    const lines = statusLines(nowPlaying);
     if (note) {
       lines.push(`Note: ${note}`);
     }
-
     return lines.join("\n");
   }
 
@@ -67,9 +76,18 @@
     };
   }
 
+  function buildDisconnectedKeyboard() {
+    return { inline_keyboard: [] };
+  }
+
   async function getNowPlaying() {
     const result = await api.storage.local.get(STORAGE_KEYS.nowPlaying);
     return result[STORAGE_KEYS.nowPlaying] || null;
+  }
+
+  async function getStoredStatusMessage() {
+    const result = await api.storage.local.get(STORAGE_KEYS.statusMessage);
+    return result[STORAGE_KEYS.statusMessage] || null;
   }
 
   async function saveStatusMessage(chatId, messageId) {
@@ -81,11 +99,6 @@
     });
   }
 
-  async function getStoredStatusMessage() {
-    const result = await api.storage.local.get(STORAGE_KEYS.statusMessage);
-    return result[STORAGE_KEYS.statusMessage] || null;
-  }
-
   async function clearStoredStatusMessage(chatId) {
     const stored = await getStoredStatusMessage();
     if (!stored || String(stored.chatId) !== String(chatId)) {
@@ -93,6 +106,25 @@
     }
 
     await api.storage.local.remove(STORAGE_KEYS.statusMessage);
+  }
+
+  async function sendStatusMessage(chatId, text, replyMarkup) {
+    return ns.telegramApiService.telegramApi("sendMessage", {
+      chat_id: chatId,
+      text,
+      reply_markup: replyMarkup,
+      disable_web_page_preview: true
+    });
+  }
+
+  async function editStatusMessage(chatId, messageId, text, replyMarkup) {
+    return ns.telegramApiService.telegramApi("editMessageText", {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      reply_markup: replyMarkup,
+      disable_web_page_preview: true
+    });
   }
 
   async function upsertStatusMessage(
@@ -113,31 +145,18 @@
 
     if (messageId) {
       try {
-        await ns.telegramApiService.telegramApi("editMessageText", {
-          chat_id: chatId,
-          message_id: messageId,
-          text,
-          reply_markup: replyMarkup,
-          disable_web_page_preview: true
-        });
+        await editStatusMessage(chatId, messageId, text, replyMarkup);
         await saveStatusMessage(chatId, messageId);
         return { chatId, messageId };
       } catch (error) {
-        if (!isMessageNotModifiedError(error)) {
-          // Fallback to sending a new message below.
-        } else {
+        if (isMessageNotModifiedError(error)) {
           return { chatId, messageId };
         }
+        // Fallback to sendMessage below.
       }
     }
 
-    const message = await ns.telegramApiService.telegramApi("sendMessage", {
-      chat_id: chatId,
-      text,
-      reply_markup: replyMarkup,
-      disable_web_page_preview: true
-    });
-
+    const message = await sendStatusMessage(chatId, text, replyMarkup);
     await saveStatusMessage(chatId, message.message_id);
     return { chatId, messageId: message.message_id };
   }
@@ -154,17 +173,11 @@
 
     const chatId = stored.chatId;
     const text = formatDisconnectedText();
-    const emptyKeyboard = { inline_keyboard: [] };
+    const replyMarkup = buildDisconnectedKeyboard();
 
     if (stored.messageId) {
       try {
-        await ns.telegramApiService.telegramApi("editMessageText", {
-          chat_id: chatId,
-          message_id: stored.messageId,
-          text,
-          reply_markup: emptyKeyboard,
-          disable_web_page_preview: true
-        });
+        await editStatusMessage(chatId, stored.messageId, text, replyMarkup);
         return;
       } catch {
         // Fallback to sending a new message below.
@@ -172,12 +185,7 @@
     }
 
     try {
-      const message = await ns.telegramApiService.telegramApi("sendMessage", {
-        chat_id: chatId,
-        text,
-        reply_markup: emptyKeyboard,
-        disable_web_page_preview: true
-      });
+      const message = await sendStatusMessage(chatId, text, replyMarkup);
       await saveStatusMessage(chatId, message.message_id);
     } catch {
       // Best effort notification.

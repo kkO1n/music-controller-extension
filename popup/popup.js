@@ -10,7 +10,7 @@
   const toggleBtn = document.getElementById("toggleBtn");
   const feedbackNode = document.getElementById("feedback");
 
-  const state = {
+  const viewState = {
     enabled: false,
     polling: false,
     hasYandexTab: false,
@@ -22,23 +22,23 @@
     feedbackNode.classList.toggle("feedback-error", isError);
   }
 
-  function normalizeState(payload) {
-    state.enabled = Boolean(payload?.enabled);
-    state.polling = Boolean(payload?.polling);
-    state.hasYandexTab = Boolean(payload?.hasYandexTab);
-    state.error = payload?.error ? String(payload.error) : null;
+  function applyConnectionState(payload) {
+    viewState.enabled = Boolean(payload?.enabled);
+    viewState.polling = Boolean(payload?.polling);
+    viewState.hasYandexTab = Boolean(payload?.hasYandexTab);
+    viewState.error = payload?.error ? String(payload.error) : null;
   }
 
-  function statusText() {
-    if (state.enabled && state.polling) {
+  function buildStatusText() {
+    if (viewState.enabled && viewState.polling) {
       return "Connected. Telegram control is active.";
     }
 
-    if (state.enabled && !state.hasYandexTab) {
+    if (viewState.enabled && !viewState.hasYandexTab) {
       return "Connected. Open music.yandex.ru to start polling.";
     }
 
-    if (state.enabled) {
+    if (viewState.enabled) {
       return "Connected. Waiting for player tab.";
     }
 
@@ -46,12 +46,12 @@
   }
 
   function render() {
-    statusNode.textContent = statusText();
-    statusNode.classList.toggle("status-connected", state.enabled && state.polling);
-    toggleBtn.textContent = state.enabled ? "Disconnect Telegram" : "Connect to Telegram";
+    statusNode.textContent = buildStatusText();
+    statusNode.classList.toggle("status-connected", viewState.enabled && viewState.polling);
+    toggleBtn.textContent = viewState.enabled ? "Disconnect Telegram" : "Connect to Telegram";
   }
 
-  async function sendMessage(message) {
+  async function requestBackground(message) {
     try {
       return await api.runtime.sendMessage(message);
     } catch {
@@ -59,23 +59,23 @@
     }
   }
 
-  async function refreshState() {
-    const response = await sendMessage({ type: MESSAGE_TYPES.getState });
+  async function refreshConnectionState() {
+    const response = await requestBackground({ type: MESSAGE_TYPES.getState });
     if (!response) {
       setFeedback("Failed to read connection state.", true);
       return;
     }
 
-    normalizeState(response);
+    applyConnectionState(response);
     render();
   }
 
-  async function onToggleClick() {
+  async function toggleConnection() {
     toggleBtn.disabled = true;
     setFeedback("");
 
-    const nextEnabled = !state.enabled;
-    const response = await sendMessage({
+    const nextEnabled = !viewState.enabled;
+    const response = await requestBackground({
       type: MESSAGE_TYPES.setEnabled,
       enabled: nextEnabled
     });
@@ -86,11 +86,11 @@
       return;
     }
 
-    normalizeState(response);
+    applyConnectionState(response);
     render();
 
     if (!response.ok) {
-      setFeedback(state.error || "Telegram is not configured.", true);
+      setFeedback(viewState.error || "Telegram is not configured.", true);
     } else {
       setFeedback(nextEnabled ? "Telegram connected." : "Telegram disconnected.");
     }
@@ -99,8 +99,8 @@
   }
 
   toggleBtn.addEventListener("click", () => {
-    void onToggleClick();
+    void toggleConnection();
   });
 
-  void refreshState();
+  void refreshConnectionState();
 })();

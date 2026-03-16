@@ -29,31 +29,34 @@
   }
 
   async function pollTelegramOnce(signal) {
-    const offset = await getTelegramOffset();
+    const currentOffset = await getTelegramOffset();
     const updates = await ns.telegramApiService.telegramApi(
       "getUpdates",
       {
-        offset,
+        offset: currentOffset,
         timeout: TELEGRAM_POLL_TIMEOUT_SECONDS,
         allowed_updates: ["message", "callback_query"]
       },
       { signal }
     );
 
-    let nextOffset = offset;
+    let nextOffset = currentOffset;
+
     for (const update of updates) {
       nextOffset = Math.max(nextOffset, Number(update.update_id) + 1);
       await ns.telegramUpdateHandlers.handleTelegramUpdate(update);
     }
 
-    if (nextOffset !== offset) {
+    if (nextOffset !== currentOffset) {
       await setTelegramOffset(nextOffset);
     }
   }
 
   async function maybeRefreshStatus(force = false) {
     const now = Date.now();
-    if (!force && now - ns.state.lastStatusRefreshAt < TELEGRAM_STATUS_REFRESH_INTERVAL_MS) {
+    const elapsedMs = now - ns.state.lastStatusRefreshAt;
+    const shouldRefresh = force || elapsedMs >= TELEGRAM_STATUS_REFRESH_INTERVAL_MS;
+    if (!shouldRefresh) {
       return;
     }
 
@@ -61,17 +64,21 @@
     await ns.statusMessageService.refreshStoredStatusMessage();
   }
 
-  async function transitionWithEffects(event, payload = {}) {
-    const current = ns.state.lifecycleState;
-    const result = transition(current, event, payload);
+  function applyTransitionResult(result) {
     ns.state.lifecycleState = result.state;
 
     if (result.clearError) {
       ns.state.lastErrorCode = null;
     }
+
     if (result.errorCode) {
       ns.state.lastErrorCode = result.errorCode;
     }
+  }
+
+  async function transitionWithEffects(event, payload = {}) {
+    const result = transition(ns.state.lifecycleState, event, payload);
+    applyTransitionResult(result);
 
     for (const effect of result.effects) {
       await runEffect(effect, payload);
@@ -80,46 +87,48 @@
     return result;
   }
 
-  async function runEffect(effect, payload = {}) {
-    if (effect === EFFECTS.loadConfig) {
-      const loaded = await ns.configService.loadConfig();
-      const hasTab = await ns.playerGateway.hasOpenPlayerTab();
-      if (loaded) {
-        await transitionWithEffects(EVENTS.enableSuccess, { hasTab });
-      } else {
-        await transitionWithEffects(EVENTS.enableFailure, {
-          errorCode: ERROR_CODES.configInvalid
-        });
+  async function runEffect(effect) {
+    switch (effect) {
+      case EFFECTS.loadConfig: {
+        const loaded = await ns.configService.loadConfig();
+        const hasTab = await ns.playerGateway.hasOpenPlayerTab();
+        if (loaded) {
+          await transitionWithEffects(EVENTS.enableSuccess, { hasTab });
+        } else {
+          await transitionWithEffects(EVENTS.enableFailure, {
+            errorCode: ERROR_CODES.configInvalid
+          });
+        }
+        return;
       }
-      return;
-    }
 
-    if (effect === EFFECTS.startPolling) {
-      if (!ns.state.pollLoopRunning) {
-        void pollLoop();
-      }
-      return;
-    }
+      case EFFECTS.startPolling:
+        if (!ns.state.pollLoopRunning) {
+          void pollLoop();
+        }
+        return;
 
-    if (effect === EFFECTS.stopPolling) {
-      stopPolling();
-      if (!ns.state.pollLoopRunning) {
-        await transitionWithEffects(EVENTS.pollStopped);
-      }
-      return;
-    }
+      case EFFECTS.stopPolling:
+        stopPolling();
+        if (!ns.state.pollLoopRunning) {
+          await transitionWithEffects(EVENTS.pollStopped);
+        }
+        return;
 
-    if (effect === EFFECTS.notifyConnected) {
-      await ns.statusMessageService.notifyConnected();
-      return;
-    }
+      case EFFECTS.notifyConnected:
+        await ns.statusMessageService.notifyConnected();
+        return;
 
-    if (effect === EFFECTS.notifyDisconnected) {
-      await ns.statusMessageService.notifyDisconnected();
+      case EFFECTS.notifyDisconnected:
+        await ns.statusMessageService.notifyDisconnected();
+        return;
+
+      default:
+        return;
     }
   }
 
-  async function maybeDispatchTabState() {
+  async function syncTabAvailability() {
     const hasTab = await ns.playerGateway.hasOpenPlayerTab();
     await transitionWithEffects(hasTab ? EVENTS.tabAvailable : EVENTS.tabUnavailable, { hasTab });
   }
@@ -141,6 +150,7 @@
       }
 
       ns.state.pollAbortController = new AbortController();
+
       try {
         await pollTelegramOnce(ns.state.pollAbortController.signal);
         await maybeRefreshStatus();
@@ -180,21 +190,18 @@
   }
 
   async function setConnectionEnabled(enabled) {
-    await transitionWithEffects(enabled ? EVENTS.enableRequest : EVENTS.disableRequest, {
+    const event = enabled ? EVENTS.enableRequest : EVENTS.disableRequest;
+    await transitionWithEffects(event, {
       polling: ns.state.pollLoopRunning
     });
 
     const snapshot = await connectionState();
     const ok = snapshot.state !== STATES.error;
-
-    return {
-      ok,
-      ...snapshot
-    };
+    return { ok, ...snapshot };
   }
 
   async function evaluatePollingState() {
-    await maybeDispatchTabState();
+    await syncTabAvailability();
   }
 
   async function bootstrap() {
@@ -202,8 +209,9 @@
     ns.state.lifecycleState = STATES.disconnected;
     ns.state.lastErrorCode = null;
     ns.state.lastStatusRefreshAt = 0;
+
     await transitionWithEffects(EVENTS.bootstrap);
-    await maybeDispatchTabState();
+    await syncTabAvailability();
   }
 
   ns.pollingController = {
@@ -213,7 +221,7 @@
     bootstrap,
     __test: {
       transitionWithEffects,
-      maybeDispatchTabState
+      maybeDispatchTabState: syncTabAvailability
     }
   };
 })();
