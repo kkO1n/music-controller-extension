@@ -11,6 +11,11 @@
   const previousBtn = document.getElementById("previousBtn");
   const playPauseBtn = document.getElementById("playPauseBtn");
   const nextBtn = document.getElementById("nextBtn");
+  const CONTROL_BINDINGS = [
+    [previousBtn, "previous"],
+    [playPauseBtn, "playPause"],
+    [nextBtn, "next"]
+  ];
 
   function renderProgress(currentTime, duration) {
     if (!currentTime && !duration) {
@@ -105,17 +110,11 @@
     renderState(changes[STORAGE_KEY].newValue);
   });
 
-  previousBtn.addEventListener("click", () => {
-    void sendControl("previous");
-  });
-
-  playPauseBtn.addEventListener("click", () => {
-    void sendControl("playPause");
-  });
-
-  nextBtn.addEventListener("click", () => {
-    void sendControl("next");
-  });
+  for (const [button, action] of CONTROL_BINDINGS) {
+    button.addEventListener("click", () => {
+      void sendControl(action);
+    });
+  }
 
   setControlsDisabled(true);
   void loadInitialState();

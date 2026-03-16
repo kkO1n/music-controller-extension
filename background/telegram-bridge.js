@@ -15,6 +15,8 @@
   };
 
   const CALLBACK_ACTIONS = new Set(["previous", "playPause", "next", "refresh"]);
+  const STATUS_COMMANDS = new Set(["/start", "/now"]);
+  const CALLBACK_PREFIX = "ctl:";
   const TELEGRAM_POLL_TIMEOUT_SECONDS = 25;
   const TELEGRAM_RETRY_DELAY_MS = 4000;
   const TELEGRAM_OK_DELAY_MS = 250;
@@ -83,11 +85,11 @@
     return {
       inline_keyboard: [
         [
-          { text: "Previous", callback_data: "ctl:previous" },
-          { text: playPauseLabel, callback_data: "ctl:playPause" },
-          { text: "Next", callback_data: "ctl:next" }
+          { text: "Previous", callback_data: `${CALLBACK_PREFIX}previous` },
+          { text: playPauseLabel, callback_data: `${CALLBACK_PREFIX}playPause` },
+          { text: "Next", callback_data: `${CALLBACK_PREFIX}next` }
         ],
-        [{ text: "Refresh", callback_data: "ctl:refresh" }]
+        [{ text: "Refresh", callback_data: `${CALLBACK_PREFIX}refresh` }]
       ]
     };
   }
@@ -118,6 +120,34 @@
 
   function isMessageNotModifiedError(error) {
     return String(error?.message || "").toLowerCase().includes("message is not modified");
+  }
+
+  function textCommand(messageText) {
+    return String(messageText || "")
+      .trim()
+      .split(/\s+/, 1)[0]
+      .toLowerCase();
+  }
+
+  function isStatusCommand(command) {
+    if (STATUS_COMMANDS.has(command)) {
+      return true;
+    }
+
+    for (const baseCommand of STATUS_COMMANDS) {
+      if (command.startsWith(`${baseCommand}@`)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  async function sendChatText(chatId, text) {
+    await telegramApi("sendMessage", {
+      chat_id: chatId,
+      text
+    });
   }
 
   async function getNowPlaying() {
@@ -263,38 +293,36 @@
     }
 
     if (!isAuthorizedUser(fromId)) {
-      await telegramApi("sendMessage", {
-        chat_id: chatId,
-        text: "Access denied for this bot."
-      });
+      await sendChatText(chatId, "Access denied for this bot.");
       return;
     }
 
-    const text = String(message.text || "").trim();
-    if (text.startsWith("/start")) {
+    const command = textCommand(message.text);
+    if (isStatusCommand(command)) {
       await upsertStatusMessage(chatId);
       return;
     }
 
-    if (text.startsWith("/now")) {
-      await upsertStatusMessage(chatId);
-      return;
-    }
-
-    await telegramApi("sendMessage", {
-      chat_id: chatId,
-      text: "Supported commands: /start, /now"
-    });
+    await sendChatText(chatId, "Supported commands: /start, /now");
   }
 
   function parseCallbackAction(callbackData) {
     const raw = String(callbackData || "");
-    if (!raw.startsWith("ctl:")) {
+    if (!raw.startsWith(CALLBACK_PREFIX)) {
       return null;
     }
 
-    const action = raw.slice(4);
+    const action = raw.slice(CALLBACK_PREFIX.length);
     return CALLBACK_ACTIONS.has(action) ? action : null;
+  }
+
+  async function maybeStartPolling() {
+    if (!bridgeConfig) {
+      await loadConfig();
+    }
+    if (bridgeConfig?.botToken && !pollLoopRunning) {
+      void pollLoop();
+    }
   }
 
   async function handleCallbackQuery(callbackQuery) {
@@ -455,12 +483,7 @@
     }
 
     return api.storage.local.set(updates).then(async () => {
-      if (!bridgeConfig) {
-        await loadConfig();
-      }
-      if (bridgeConfig?.botToken && !pollLoopRunning) {
-        void pollLoop();
-      }
+      await maybeStartPolling();
       return { ok: true };
     });
   });
